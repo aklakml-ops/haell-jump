@@ -1,26 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Hael Jump Jump</title>
+
 <style>
-body { margin:0; background:#222; overflow:hidden; }
-canvas { display:block; margin:auto; background:#cceeff; touch-action:none; }
-#kontrol {
-  position: fixed; bottom: 20px; width:100%;
-  display:flex; justify-content:space-around; pointer-events:none;
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #222;
+  overflow: hidden;
+  height: 100%;
 }
+
+/* CANVAS FULL LAYAR */
+canvas {
+  display: block;
+  margin: auto;
+  width: 100vw;
+  height: 100vh;
+  max-width: 400px;
+  max-height: 600px;
+  background: #cceeff;
+  touch-action: none;
+}
+
+/* KONTROL */
+#kontrol {
+  position: fixed;
+  bottom: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  pointer-events: none;
+}
+
 .btn {
-  width:100px; height:100px; background:rgba(0,0,0,0.3);
-  border-radius:50%; pointer-events:auto;
-  display:flex; justify-content:center; align-items:center;
-  font-size:2em; color:white; user-select:none;
+  width: 80px;
+  height: 80px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 50%;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2em;
+  color: white;
+  user-select: none;
 }
 </style>
 </head>
+
 <body>
 
-<canvas id="game" width="400" height="600"></canvas>
+<canvas id="game"></canvas>
 
 <div id="kontrol">
   <div class="btn" id="kiri">◀</div>
@@ -28,140 +62,158 @@ canvas { display:block; margin:auto; background:#cceeff; touch-action:none; }
 </div>
 
 <script>
-window.onload = function() {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-// Player
-let player = { x:185, y:300, w:30, h:30, vy:0, speed:4 };
+/* ===== CANVAS FIX 400x600 (TAJEM) ===== */
+const LOGIC_WIDTH = 400;
+const LOGIC_HEIGHT = 600;
+const dpr = window.devicePixelRatio || 1;
+
+canvas.width = LOGIC_WIDTH * dpr;
+canvas.height = LOGIC_HEIGHT * dpr;
+ctx.scale(dpr, dpr);
+
+/* ===== PLAYER ===== */
+let player = {
+  x: 185,
+  y: 300,
+  w: 30,
+  h: 30,
+  vy: 0,
+  speed: 4
+};
+
 const gravity = 0.4;
-const jumpPower = -20;
+const jumpPower = -18;
 
-// Controls
+/* ===== INPUT ===== */
 let keys = {};
-document.addEventListener("keydown", e=>keys[e.key]=true);
-document.addEventListener("keyup", e=>keys[e.key]=false);
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
 
-const tombolKiri = document.getElementById("kiri");
-const tombolKanan = document.getElementById("kanan");
 let sentuh = { kiri:false, kanan:false };
+kiri.ontouchstart = e => { sentuh.kiri = true; e.preventDefault(); };
+kiri.ontouchend   = e => { sentuh.kiri = false; e.preventDefault(); };
+kanan.ontouchstart = e => { sentuh.kanan = true; e.preventDefault(); };
+kanan.ontouchend   = e => { sentuh.kanan = false; e.preventDefault(); };
 
-tombolKiri.addEventListener("touchstart", e=>{ sentuh.kiri=true; e.preventDefault(); });
-tombolKiri.addEventListener("touchend", e=>{ sentuh.kiri=false; e.preventDefault(); });
-tombolKanan.addEventListener("touchstart", e=>{ sentuh.kanan=true; e.preventDefault(); });
-tombolKanan.addEventListener("touchend", e=>{ sentuh.kanan=false; e.preventDefault(); });
-
-// Platforms
+/* ===== PLATFORM ===== */
 let platforms = [];
+
 function buatPlatform() {
   platforms = [];
-  // Platform start tetap di bawah player
-  platforms.push({ x:160, y:player.y + player.h + 10, w:80, h:10 });
-  // Platform lain random dengan jarak rapet
-  let lastY = player.y + player.h + 10;
-  for(let i=1;i<6;i++){
-    let gap = 60 + Math.random()*30; // jarak 60–90 px
-    lastY -= gap;
-    platforms.push({ x:Math.random()*320, y:lastY, w:80, h:10 });
+  platforms.push({ x: 160, y: 350, w: 80, h: 10 });
+
+  let y = 350;
+  for (let i = 0; i < 6; i++) {
+    y -= 80;
+    platforms.push({
+      x: Math.random() * 320,
+      y,
+      w: 80,
+      h: 10
+    });
   }
 }
 
-// Score & Game Over
-let skor=0, skorMax=0, gameOver=false;
+/* ===== SCORE ===== */
+let skor = 0;
+let skorMax = 0;
+let gameOver = false;
 
-// Reset Game
-function resetGame(){
-  player.x=185; player.y=300; player.vy=0;
-  skor=0; gameOver=false;
+function resetGame() {
+  player.x = 185;
+  player.y = 300;
+  player.vy = 0;
+  skor = 0;
+  gameOver = false;
   buatPlatform();
 }
 
-// Init
 buatPlatform();
 
-// Game loop
+/* ===== GAME LOOP ===== */
 function update() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,LOGIC_WIDTH,LOGIC_HEIGHT);
 
-  if(gameOver){
-    // Draw game over screen
-    ctx.fillStyle="rgba(0,0,0,0.8)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle="white";
-    ctx.font="30px Arial";
-    ctx.textAlign="center";
-    ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2-30);
-    ctx.fillText("Skor: "+skor, canvas.width/2, canvas.height/2+10);
-    ctx.fillText("Tertinggi: "+skorMax, canvas.width/2, canvas.height/2+50);
-    ctx.fillText("Tap layar untuk restart", canvas.width/2, canvas.height/2+90);
+  if (gameOver) {
+    ctx.fillStyle = "rgba(0,0,0,0.8)";
+    ctx.fillRect(0,0,LOGIC_WIDTH,LOGIC_HEIGHT);
+    ctx.fillStyle = "white";
+    ctx.font = "28px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("GAME OVER", 200, 250);
+    ctx.fillText("Skor: " + skor, 200, 290);
+    ctx.fillText("Tertinggi: " + skorMax, 200, 330);
+    ctx.fillText("Tap untuk restart", 200, 380);
     requestAnimationFrame(update);
     return;
   }
 
-  // Movement
-  if(keys["ArrowLeft"]||keys["a"]||sentuh.kiri) player.x-=player.speed;
-  if(keys["ArrowRight"]||keys["d"]||sentuh.kanan) player.x+=player.speed;
-  if(player.x>canvas.width) player.x=-player.w;
-  if(player.x<-player.w) player.x=canvas.width;
+  /* GERAK */
+  if (keys["ArrowLeft"] || keys["a"] || sentuh.kiri) player.x -= player.speed;
+  if (keys["ArrowRight"] || keys["d"] || sentuh.kanan) player.x += player.speed;
 
-  // Gravity
-  player.vy+=gravity;
-  player.y+=player.vy;
+  if (player.x > LOGIC_WIDTH) player.x = -player.w;
+  if (player.x < -player.w) player.x = LOGIC_WIDTH;
 
-  // Collision with platforms
-  platforms.forEach(p=>{
-    if(player.x<p.x+p.w && player.x+player.w>p.x &&
-       player.y+player.h<=p.y+10 && player.y+player.h+player.vy>=p.y){
-      player.vy=jumpPower;
+  /* GRAVITASI */
+  player.vy += gravity;
+  player.y += player.vy;
+
+  /* TABRAKAN PLATFORM */
+  platforms.forEach(p => {
+    if (
+      player.x < p.x + p.w &&
+      player.x + player.w > p.x &&
+      player.y + player.h <= p.y + 10 &&
+      player.y + player.h + player.vy >= p.y
+    ) {
+      player.vy = jumpPower;
     }
   });
 
-  // Camera & platform respawn
-  if(player.y<200){
+  /* KAMERA */
+  if (player.y < 200) {
     let diff = 200 - player.y;
-    platforms.forEach(p=>{
-      p.y += diff/5;
-      if(p.y>canvas.height){
-        let gap = 60 + Math.random()*30;
-        p.y = -gap; // muncul agak rapet di atas layar
-        p.x = Math.random()*320;
+    player.y = 200;
+    platforms.forEach(p => {
+      p.y += diff;
+      if (p.y > LOGIC_HEIGHT) {
+        p.y = -80;
+        p.x = Math.random() * 320;
       }
     });
-    player.y=200;
-    skor += Math.floor(diff/5); // skor naik lebih realistis
+    skor += Math.floor(diff);
   }
 
-  // Check game over
-  if(player.y>canvas.height){
-    gameOver=true;
-    if(skor>skorMax) skorMax=skor;
+  if (player.y > LOGIC_HEIGHT) {
+    gameOver = true;
+    skorMax = Math.max(skor, skorMax);
   }
 
-  // Draw player
-  ctx.fillStyle="red";
+  /* DRAW */
+  ctx.fillStyle = "red";
   ctx.fillRect(player.x, player.y, player.w, player.h);
 
-  // Draw platforms
-  ctx.fillStyle="green";
-  platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+  ctx.fillStyle = "green";
+  platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
 
-  // Draw score
-  ctx.fillStyle="black";
-  ctx.font="20px Arial";
-  ctx.textAlign="left";
-  ctx.fillText("Skor: "+skor,10,30);
-  ctx.fillText("Tertinggi: "+skorMax,10,60);
+  ctx.fillStyle = "black";
+  ctx.font = "18px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText("Skor: " + skor, 10, 25);
+  ctx.fillText("High: " + skorMax, 10, 50);
 
   requestAnimationFrame(update);
 }
 
-// Restart on tap anywhere
-canvas.addEventListener("touchstart", e=>{
-  if(gameOver) resetGame();
+canvas.addEventListener("touchstart", () => {
+  if (gameOver) resetGame();
 });
 
 update();
-};
 </script>
 
 </body>
